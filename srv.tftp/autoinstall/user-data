@@ -1,0 +1,163 @@
+#cloud-config
+autoinstall:
+  version: 1
+  interactive-sections: []
+
+  # https://ubuntu.com/server/docs/install/autoinstall-reference
+  # https://ubuntu.com/server/docs/install/autoinstall-schema
+  apt:
+    primary:
+      - arches: [default]
+        uri: http://mirrors.cqu.edu.cn/ubuntu
+    # geoip: true
+    # sources:
+    #   my-ppa.list:
+    #     source: "deb http://ppa.launchpad.net/curtin-dev/test-archive/ubuntu $RELEASE main"
+    #     keyid: B59D 5F15 97A5 04B7 E230  6DCA 0620 BBCF 0368 3F77
+
+  user-data:
+    timezone: Asia/Chongqing
+    # Europe/London
+    disable_root: true
+    # openssl passwd -6 -salt 1234
+    # mkpasswd -m sha-512
+    chpasswd:
+      list: |
+        root: $6$M8WnHMy5c6Mj$9hBKDqImDNSvhU.ANvrRfMW.qEmK0wZS1zExtGh0hkSc7kb4TTAC1q6TCC/MF806v5yXi8jZ/g6gHGchKb2Ko/
+    runcmd:
+      - wget -P /root/ http://pxe-server:3001/bash/boot.sh
+      - wget -P /root/ http://pxe-server:3001/priv/gpg.key || echo "no gpg key, skipped"
+      - wget -P /root/ http://pxe-server:3001/priv/custom.sh || echo "no custom.sh, skipped"
+      - bash /root/boot.sh
+      #- sed -ie 's/GRUB_TIMEOUT=.*/GRUB_TIMEOUT=3/' /target/etc/default/grub
+
+  identity:
+    hostname: ubuntu-server
+    # username: ubuntu
+    # password: "$6$exDY1mhS4KUYCE/2$zmn9ToZwTKLhCw.b4/b.ZRTIZM30JZ4QrOQ2aOXJ8yk96xpcCof0kxKwuX1kqLG/ygbJ1f8wxED22bTL4F46P0"
+    username: hz
+    password: "$6$M8WnHMy5c6Mj$9hBKDqImDNSvhU.ANvrRfMW.qEmK0wZS1zExtGh0hkSc7kb4TTAC1q6TCC/MF806v5yXi8jZ/g6gHGchKb2Ko/"
+
+  keyboard: {layout: 'us', variant: 'us'}
+  # keyboard: {layout: 'gb', variant: 'devorak'}
+  locale: en_US.UTF-8
+
+#network:
+#  version: 2
+#  ethernets: { ens33: {dhcp4: yes,dhcp6: yes}, ens38: {dhcp4: yes,dhcp6: yes}, ens39: {dhcp4: yes,dhcp6: yes} }
+
+#   enp0s33:
+#    dhcp4: yes
+#    dhcp6: yes
+
+  # network:
+  #   network:
+  #     version: 2
+  #     ethernets:
+  #       enp0s25:
+  #        dhcp4: yes
+  #       enp3s0: {}
+  #       enp4s0: {}
+  #     bonds:
+  #       bond0:
+  #         dhcp4: yes
+  #         interfaces:
+  #           - enp3s0
+  #           - enp4s0
+  #         parameters:
+  #           mode: active-backup
+  #           primary: enp3s0
+
+  # network:
+  #   version: 2
+  #   renderer: networkd
+  #   ethernets:
+  #     enp0s3:
+  #       dhcp4: no
+  #       addresses:
+  #         - 10.10.50.200/24
+  #       gateway4: 10.10.50.1
+  #       nameservers:
+  #         search:
+  #           - mynetwork.loc
+  #         addresses:
+  #           - 10.10.50.53
+  #           - 10.10.51.53
+
+  # proxy: http://192.168.0.72:7890
+  # proxy: ""
+
+  ssh:
+    allow-pw: no
+    install-server: true
+    authorized-keys: ["ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDxjcUOlmgsabCmeYD8MHnsVxueebIocv5AfG3mpmxA3UZu6GZqnp65ipbWL9oGtZK3BY+WytnbTDMYdVQWmYvlvuU6+HbOoQf/3z3rywkerbNQdffm5o9Yv/re6dlMG5kE4j78cXFcR11xAJvJ3vmM9tGSBBu68DR35KWz2iRUV8l7XV6E+XmkPkqJKr3IvrxdhM0KpCZixuz8z9krNue6NdpyELT/mvD5sL9LG4+XtU0ss7xH1jk5nmAQGaJW9IY8CVGy07awf0Du5CEfepmOH5gJbGwpAIIubAzGarefbltXteerB0bhyyC3VX0Q8lIHZ6GhMZSqfD9vBHRnDLIL"]
+
+  packages: ["curl", "wget"]
+    # - net-tools
+    # - lsof
+    # - python3-pip
+    #- linux-generic-hwe-20.04-edge
+    #- curl
+    #- wget
+    # - whois   # mkpasswd -m sha-512
+
+  # snaps:
+  #   - name: go
+  #     channel: 1.16/stable
+  #     classic: true
+
+  #debconf-selections: |
+  #  bind9      bind9/run-resolvconf    boolean false
+
+  security: no
+
+  storage:
+    grub:
+      reorder_uefi: false
+    # config:
+    # - {ptable: gpt, path: /dev/sda, wipe: superblock-recursive, preserve: false, name: '', grub_device: false, type: disk, id: disk-sda}
+    # - {device: disk-sda, size: 536870912, wipe: superblock, flag: boot, number: 1, preserve: false, grub_device: true, type: partition, id: partition-0}
+    # - {fstype: fat32, volume: partition-0, preserve: false, type: format, id: format-0}
+    # - {device: disk-sda, size: -1, wipe: superblock, flag: '', number: 2, preserve: false, type: partition, id: partition-1}
+    # - {fstype: ext4, volume: partition-1, preserve: false, type: format, id: format-1}
+    # - {device: format-1, path: /, type: mount, id: mount-1}
+    # - {device: format-0, path: /boot/efi, type: mount, id: mount-0}
+    swap:
+      size: 0
+    config:
+      # https://askubuntu.com/questions/1244293/how-to-autoinstall-config-fill-disk-option-on-ubuntu-20-04-automated-server-in
+      - {ptable: gpt, path: /dev/sda, preserve: false, name: '', grub_device: false, type: disk, id: disk-sda}
+      
+      - {device: disk-sda, size: 536870912, wipe: superblock, flag: boot, number: 1, preserve: false, grub_device: true, type: partition, id: partition-sda1}
+      - {fstype: fat32, volume: partition-sda1, preserve: false, type: format, id: format-2}
+      
+      - {device: disk-sda, size: 1073741824, wipe: superblock, flag: linux, number: 2,
+        preserve: false, grub_device: false, type: partition, id: partition-sda2}
+      - {fstype: ext4, volume: partition-sda2, preserve: false, type: format, id: format-0}
+      
+      - {device: disk-sda, size: -1, flag: linux, number: 3, preserve: false,
+        grub_device: false, type: partition, id: partition-sda3}
+      - name: vg-0
+        devices: [partition-sda3]
+        preserve: false
+        type: lvm_volgroup
+        id: lvm-volgroup-vg-0
+      - {name: lv-root, volgroup: lvm-volgroup-vg-0, size: 100%, preserve: false, type: lvm_partition, id: lvm-partition-lv-root}
+      - {fstype: ext4, volume: lvm-partition-lv-root, preserve: false, type: format, id: format-1}
+      
+      - {device: format-1, path: /, type: mount, id: mount-2}
+      - {device: format-0, path: /boot, type: mount, id: mount-1}
+      - {device: format-2, path: /boot/efi, type: mount, id: mount-3}
+
+  # early-commands:
+  #   - echo "Welcome to Fashion!"
+  #   #- ping -c1 198.162.1.1
+
+  # late-commands:
+    #- curtin in-target --target=/target -- wget -P /root/ http://pxe-server:3001/bash/boot.sh
+    #- curtin in-target --target=/target -- bash /root/boot.sh
+    #- sed -ie 's/GRUB_TIMEOUT=.*/GRUB_TIMEOUT=3/' /target/etc/default/grub
+
+  # error-commands:
+  #   - tar c /var/log/installer | nc 192.168.0.1 1000
+
