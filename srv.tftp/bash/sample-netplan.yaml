@@ -1,0 +1,21 @@
+#
+# modify /etc/netplan/000-default.yaml, and apply it:
+# sudo netplan apply
+#
+network:
+	ethernets:
+
+		ens18:
+			dhcp4: no
+			addresses: 
+			  - 192.168.2.10/24
+				#- 10.0.2.5
+			gateway4: 192.168.2.1
+			nameservers:
+				addresses: [114.114.114.114, 8.8.8.8]
+
+		ens19:
+			dhcp4: yes
+			dhcp6: yes
+
+	version: 2
