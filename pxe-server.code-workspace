@@ -1,0 +1,23 @@
+{
+	"folders": [
+		{
+			"path": "home.dir.dot.local.bin"
+		},
+		{
+			"path": "srv.tftp"
+		},
+		{
+			"path": "etc.default"
+		},
+		{
+			"path": "etc.dhcp"
+		},
+		{
+			"path": "etc.nginx"
+		},
+		{
+			"path": "."
+		}
+	],
+	"settings": {}
+}
