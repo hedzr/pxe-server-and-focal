@@ -62,6 +62,12 @@ info_print() {
 	df -hT
 	lsblk
 	# less /var/log/cloud-init-output.log
+	ip a|grep 'inet '
+
+	echo '======= boot.sh: ALL FOLKS! Restart OS so that auto login to tty1'
+	echo '         Or run: sudo systemctl restart getty@tty1.service'
+	#sleep 5
+	#$SUDO systemctl restart getty@tty1.service
 }
 
 _entry() {
@@ -262,7 +268,7 @@ all_dhcp() {
 
 	local f="$(ls -b /etc/netplan/*.yaml | head -1)"
 	grep -q 'ethernets: \{' $f || {
-		cat <<-"EOF" | $SUDO tee $f
+		cat <<-EOF | $SUDO tee $f
 			network:
 			  ethernets: { $network_str }
 			    # ens33:
@@ -526,6 +532,8 @@ install_zsh() {
 install_zsh_to() {
 	local name="${1:-$Username}"
 	local home=$(_homedir $name)
+	local zsh_theme="linuxonly"
+	local zsh_history_size=9999
 
 	$SUDO chsh -s $(which zsh) $name
 	$SUDO usermod --shell $(which zsh) $name
@@ -540,13 +548,19 @@ install_zsh_to() {
 	headline 'cloneing zsh-syntax-highlighting ...'
 	$SUDO su - $name -c "git clone https://github.com/zsh-users/zsh-syntax-highlighting.git $home/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting"
 
+	headline 'configuring .zshrc ...'
+	$SUDO test -f /root/ys-rich.zsh-theme && {
+		$SUDO cp /root/ys-rich.zsh-theme $home/.oh-my-zsh/themes/
+		$SUDO chown $USER: $home/.oh-my-zsh/themes/ys-rich.zsh-theme
+		zsh_theme="ys-rich"
+	}
 	$SUDO su - $name -c "perl -i -pe \"s/plugins=\(git\)/plugins=(git z zsh-autosuggestions zsh-syntax-highlighting)/\" $home/.zshrc"
 	# https://github.com/ohmyzsh/ohmyzsh/wiki/Themes
-	$SUDO su - $name -c "perl -i -pe 's/ZSH_THEME=\"robbyrussell\"/ZSH_THEME=\"amuse\"/' $home/.zshrc"
+	$SUDO su - $name -c "perl -i -pe 's/ZSH_THEME=\"robbyrussell\"/ZSH_THEME=\"${zsh_theme}\"/' $home/.zshrc"
 
-	$SUDO su - $name -c "perl -i -pe 's#\# export PATH=.+$#PATH=\$HOME/\.local/bin:/usr/local/bin:\$PATH#' $home/.zshrc"
+	$SUDO su - $name -c "perl -i -pe 's#\# export PATH=.+$#PATH=\$HOME/\.local/bin:\$PATH#' $home/.zshrc"
 
-	cat >>$home/.zshrc <<-"EOF"
+	cat >>$home/.zshrc <<-EOF
 
 
 
@@ -554,15 +568,15 @@ install_zsh_to() {
 		# export LC_ALL=C
 		export LC_ALL=en_US.UTF-8  # solve perl warning, git-prompt-info chracter not in range
 		HISTFILE=~/.zsh_history
-		HISTSIZE=5000
-		SAVEHIST=5000
+		HISTSIZE=$zsh_history_size
+		SAVEHIST=$zsh_history_size
 		bindkey -e
 		# End of lines configured by zsh-newuser-install
 
 
 		## autocomp system
 
-		fpath=(/usr/local/share/zsh/site-functions $fpath)
+		fpath=(/usr/local/share/zsh/site-functions \$fpath)
 
 		# The following lines were added by compinstall
 		zstyle :compinstall filename '/home/hz/.zshrc'
@@ -576,9 +590,11 @@ install_zsh_to() {
 		# user defined
 
 		[ -d ~/.local/bin ] && \
-		  for f in ~/.local/bin/.zsh.*; do source $f; done
+		  for f in ~/.local/bin/.zsh.*; do source \$f; done
 		[ -d ~/bin ] && \
-		  for f in ~/bin/.zsh.*; do source $f; done
+		  for f in ~/bin/.zsh.*; do source \$f; done
+
+		# end of user defined
 
 	EOF
 
@@ -589,45 +605,43 @@ install_zsh_to() {
 	$SUDO cat >>$home/.local/bin/.zsh.30.tool <<-"EOF"
 
 		function ports() {
-			local SUDO=sudo
-			[ "$(id -u)" = "0" ] && SUDO=
-			if [ $# -eq 0 ]; then
-				$SUDO lsof -Pni | grep -P "LISTEN|UDP"
-			else
-				local p='' i
-				for i in "$@"; do
-					if [[ "$i" -gt 0 ]]; then
-						p="$p -i :$i"
-					else
-						p="$p -i $i"
-					fi
-				done
-				# DEBUG echo "lsof -Pn $p"
-				$SUDO lsof -Pn $p
-			fi
+		  local SUDO=sudo
+		  [ "$(id -u)" = "0" ] && SUDO=
+		  if [ $# -eq 0 ]; then
+		    $SUDO lsof -Pni | grep -P "LISTEN|UDP"
+		  else
+		    local p='' i
+		    for i in "$@"; do
+		      if [[ "$i" -gt 0 ]]; then
+		        p="$p -i :$i"
+		      else
+		        p="$p -i $i"
+		      fi
+		    done
+		    # DEBUG echo "lsof -Pn $p"
+		    $SUDO lsof -Pn $p
+		  fi
 		}
 
 		function zsh_theme_set() {
-			local theme_name=${1:-af-magic}
-			perl -i -pe "s/ZSH_THEME=\".+\"/ZSH_THEME=\"$theme_name\"/" ~/.zshrc
+		  local theme_name=${1:-af-magic}
+		  perl -i -pe "s/ZSH_THEME=\".+\"/ZSH_THEME=\"$theme_name\"/" ~/.zshrc
 		}
 
 	EOF
 
-	$SUDO cat >>$home/.local/bin/.zsh.00.path <<-"EOF"
+	$SUDO cat >>$home/.local/bin/.zsh.00.path <<-EOF
 
 
-		# hedzr's gpg
-		#export GPG_KEYID_MASTER=2E6F77F217AFB9B1
+		# the gpg keys
 		export GPG_KEYID_MASTER=$GPG_KEYID_MASTER
 		export GPG_KEYID=$GPG_KEYID          # GH
 		export GPG_KEYID_MAIL=$GPG_KEYID_MAIL     # Mail
 
 
 		# for DEB MAKE
-		DEBEMAIL="hedzrz@gmail.com"
-		#DEBFULLNAME="Hedzr Yeh"
-		DEBFULLNAME="hedzr (hz, hedzr)"
+		DEBEMAIL="$DEBEMAIL"
+		DEBFULLNAME="$DEBFULLNAME"
 		export DEBEMAIL DEBFULLNAME
 		#DEBUILD_DPKG_BUILDPACKAGE_OPTS="-i -I -us -uc"
 		#DEBUILD_LINTIAN_OPTS="-i -I --show-overrides"
@@ -652,121 +666,121 @@ install_git_env() {
 		$SUDO su - $name -c "gpg --import $GK" &&
 		$SUDO rm -f $GK &&
 		$SUDO su - $name -c "
-			git config --global user.signingkey $GIT_SIGN_KEY;
-			git config --global commit.gpgsign 'true';
+		  git config --global user.signingkey $GIT_SIGN_KEY;
+		  git config --global commit.gpgsign 'true';
 			"
 
 	$SUDO su - $name -c "
-	git config --global user.name '$GIT_USERNAME';
-	git config --global user.email '$GIT_USERMAIL';
+		git config --global user.name '$GIT_USERNAME';
+		git config --global user.email '$GIT_USERMAIL';
 
-	git config --global core.excludesfile '$home/.gitignore';
-	git config --global core.filemode 'false';
-	git config --global core.safecrlf warn;
-	git config --global core.autocrlf input;
-	git config --global core.editor nano;
-	git config --global core.pager 'less -FX';
+		git config --global core.excludesfile '$home/.gitignore';
+		git config --global core.filemode 'false';
+		git config --global core.safecrlf warn;
+		git config --global core.autocrlf input;
+		git config --global core.editor nano;
+		git config --global core.pager 'less -FX';
 
-	git config --global commit.template '$home/.stCommitMsg';
+		git config --global commit.template '$home/.stCommitMsg';
 	"
 
 	cat <<-"EOF" | $SUDO su - $name -c "tee -a $home/.gitconfig"
 
 		[init]
-			defaultBranch = master
+		  defaultBranch = master
 
 		[alias]
-			st = status -s
-			ci = commit
-			co = checkout
-			br = branch
-			rb = rebase
-			dci = dcommit
-			sbi = submodule init
-			sbu = submodule update
-			sbp = submodule foreach git pull
-			sbc = submodule foreach git co master
-			# st = status -sb
-			#dci = dcommit
-			rebase-to = "! bash -c \"X1=\\`git symbolic-ref HEAD 2> /dev/null | cut -b 12-\\`; echo rebasing from \\$X1 to $1 ...; git checkout $1; git rebase \\$X1; git checkout \\$X1 \""
-			rr = "! bash -c \"X1=\\`git symbolic-ref HEAD 2> /dev/null | cut -b 12-\\`; echo rebasing from \\$X1 to $1 ...; git checkout $1; git rebase \\$X1; git checkout \\$X1 \""
-			merge-no-ff = merge --no-ff
-			mg = merge --no-ff
-			upull = pull upstream
-			upp = "! bash -c \"X1=\\`git symbolic-ref HEAD 2> /dev/null | cut -b 12-\\`; echo Pulling branch *\\$X1* from *upstream* ...; git pull upstream \\$X1 \""
-			files = ls-tree --full-tree -r --name-only HEAD
-			#l = log --oneline --decorate -13
-			l = log --oneline --decorate -12 --color
-			ll = log --oneline --decorate --color
-			lc = log --graph --color
-			lp = log -p
-			lg = log --color --graph --oneline --decorate --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit
-			pulls = "! bash -c \"for br in $@; do git pull origin $br:$br; done \""
-			pu = "! bash -c \"for br in $@; do git push origin $br:$br; done \""
-			pushs = "! bash -c \"for br in $@; do git push origin $br:$br; done \""
-			push-all = "! bash -c \"git push origin --all;git push origin --tags \""
-			tarball = "! bash -c \"git archive --format=tar.gz -o ../$1.tar.gz --prefix=$1/ HEAD; ls -la ../$1.tar.gz \""
-			m2 = "! bash -c \"git checkout $1; git merge --no-ff $2; git checkout $2 \""
-			m3 = ! bash -c \"echo \\\"$3\\\" \\\"$4\\\" \"
-			m4 = ! bash -c \"echo \\\"$*\\\" \"
-			mm = "! bash -c \"X1=\\`git symbolic-ref HEAD 2> /dev/null | cut -b 12-\\`; echo merging from \\$X1 to $1 ...; git checkout $1; git merge --no-ff \\$X1; git checkout \\$X1 \""
-			mt = "! bash -c \"X1=\\`git symbolic-ref HEAD 2> /dev/null | cut -b 12-\\`; echo merging from \\$X1 to $1 ...; git checkout $1; git merge --no-ff \\$X1; git tag $2; git checkout \\$X1 \""
-			tt = "! bash -c \"X1=\\`git symbolic-ref HEAD 2> /dev/null | cut -b 12-\\`; git checkout master; git tag $1; git checkout \\$X1 \""
-			gh = "!bash -c \"git co master; git merge --no-ff devel; git push origin master; git co devel\""
-			ac = !git add -A && git commit
-			branches = branch -a
-			tags = tag -l
-			remotes = remote -v
-			cleanup = !git branch --merged | grep -v '*' | xargs git branch -d
-			tag-rel = "! bash -c \"X1=\\`git symbolic-ref HEAD 2> /dev/null | cut -b 12-\\`; echo taging master to release $1 [\\$X1] ...; git checkout master; git tag release/v$1; git checkout \\$X1 \""
-			rm-remote-tag = ! bash -c \"git push -v ${2:-origin} :refs/tags/$1\"
-			rm-local-branch = branch --delete
-			rm-local-branch-force = branch --delete --force
-			rm-remote-branch = ! bash -c \"git push -v ${2:-origin} --delete $1\"
-			# remove remote branch or tag: git push <remote_name> :<branch_name>
+		  st = status -s
+		  ci = commit
+		  co = checkout
+		  br = branch
+		  rb = rebase
+		  dci = dcommit
+		  sbi = submodule init
+		  sbu = submodule update
+		  sbp = submodule foreach git pull
+		  sbc = submodule foreach git co master
+		  # st = status -sb
+		  #dci = dcommit
+		  rebase-to = "! bash -c \"X1=\\`git symbolic-ref HEAD 2> /dev/null | cut -b 12-\\`; echo rebasing from \\$X1 to $1 ...; git checkout $1; git rebase \\$X1; git checkout \\$X1 \""
+		  rr = "! bash -c \"X1=\\`git symbolic-ref HEAD 2> /dev/null | cut -b 12-\\`; echo rebasing from \\$X1 to $1 ...; git checkout $1; git rebase \\$X1; git checkout \\$X1 \""
+		  merge-no-ff = merge --no-ff
+		  mg = merge --no-ff
+		  upull = pull upstream
+		  upp = "! bash -c \"X1=\\`git symbolic-ref HEAD 2> /dev/null | cut -b 12-\\`; echo Pulling branch *\\$X1* from *upstream* ...; git pull upstream \\$X1 \""
+		  files = ls-tree --full-tree -r --name-only HEAD
+		  #l = log --oneline --decorate -13
+		  l = log --oneline --decorate -12 --color
+		  ll = log --oneline --decorate --color
+		  lc = log --graph --color
+		  lp = log -p
+		  lg = log --color --graph --oneline --decorate --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit
+		  pulls = "! bash -c \"for br in $@; do git pull origin $br:$br; done \""
+		  pu = "! bash -c \"for br in $@; do git push origin $br:$br; done \""
+		  pushs = "! bash -c \"for br in $@; do git push origin $br:$br; done \""
+		  push-all = "! bash -c \"git push origin --all;git push origin --tags \""
+		  tarball = "! bash -c \"git archive --format=tar.gz -o ../$1.tar.gz --prefix=$1/ HEAD; ls -la ../$1.tar.gz \""
+		  m2 = "! bash -c \"git checkout $1; git merge --no-ff $2; git checkout $2 \""
+		  m3 = ! bash -c \"echo \\\"$3\\\" \\\"$4\\\" \"
+		  m4 = ! bash -c \"echo \\\"$*\\\" \"
+		  mm = "! bash -c \"X1=\\`git symbolic-ref HEAD 2> /dev/null | cut -b 12-\\`; echo merging from \\$X1 to $1 ...; git checkout $1; git merge --no-ff \\$X1; git checkout \\$X1 \""
+		  mt = "! bash -c \"X1=\\`git symbolic-ref HEAD 2> /dev/null | cut -b 12-\\`; echo merging from \\$X1 to $1 ...; git checkout $1; git merge --no-ff \\$X1; git tag $2; git checkout \\$X1 \""
+		  tt = "! bash -c \"X1=\\`git symbolic-ref HEAD 2> /dev/null | cut -b 12-\\`; git checkout master; git tag $1; git checkout \\$X1 \""
+		  gh = "!bash -c \"git co master; git merge --no-ff devel; git push origin master; git co devel\""
+		  ac = !git add -A && git commit
+		  branches = branch -a
+		  tags = tag -l
+		  remotes = remote -v
+		  cleanup = !git branch --merged | grep -v '*' | xargs git branch -d
+		  tag-rel = "! bash -c \"X1=\\`git symbolic-ref HEAD 2> /dev/null | cut -b 12-\\`; echo taging master to release $1 [\\$X1] ...; git checkout master; git tag release/v$1; git checkout \\$X1 \""
+		  rm-remote-tag = ! bash -c \"git push -v ${2:-origin} :refs/tags/$1\"
+		  rm-local-branch = branch --delete
+		  rm-local-branch-force = branch --delete --force
+		  rm-remote-branch = ! bash -c \"git push -v ${2:-origin} --delete $1\"
+		  # remove remote branch or tag: git push <remote_name> :<branch_name>
 
 		[color]
-			interactive = true
-			ui = auto
-			diff = auto
-			status = auto
-			branch = auto
+		  interactive = true
+		  ui = auto
+		  diff = auto
+		  status = auto
+		  branch = auto
 
 		[color "branch"]
-			current = yellow reverse
-			local = yellow
-			remote = green
+		  current = yellow reverse
+		  local = yellow
+		  remote = green
 		[color "diff"]
-			meta = yellow bold
-			frag = magenta bold
-			old = red bold
-			new = green bold
+		  meta = yellow bold
+		  frag = magenta bold
+		  old = red bold
+		  new = green bold
 		[color "status"]
-			added = yellow
-			changed = green
-			untracked = cyan
+		  added = yellow
+		  changed = green
+		  untracked = cyan
 
 		[push]
-			default = matching
+		  default = matching
 
 		# git config --global pull.rebase false  # merge (the default strategy)
 		# git config --global pull.rebase true   # rebase
 		# git config --global pull.ff only       # fast-forward only
 		[pull]
-			ff = false
-			rebase = false
+		  ff = false
+		  rebase = false
 
 		[http]
-			sslVerify = true
-			postBuffer = 524288000
+		  sslVerify = true
+		  postBuffer = 524288000
 
 		#[https "https://my-repo.com"]
 		# proxy = http://127.0.0.1:7890
 		[filter "lfs"]
-			clean = git-lfs clean -- %f
-			smudge = git-lfs smudge -- %f
-			process = git-lfs filter-process
-			required = true
+		  clean = git-lfs clean -- %f
+		  smudge = git-lfs smudge -- %f
+		  process = git-lfs filter-process
+		  required = true
 
 	EOF
 
