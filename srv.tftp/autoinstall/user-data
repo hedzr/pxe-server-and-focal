@@ -1,23 +1,34 @@
+## template: jinja
 #cloud-config
+# vim: syntax=yaml
 autoinstall:
   version: 1
-  interactive-sections: []
+  interactive-sections: [ ]
+  # eg: network, storage
+  refresh-installer: { update: no } # Controls whether the installer updates to a new version available in the given channel before continuing.
 
   # https://ubuntu.com/server/docs/install/autoinstall-reference
   # https://ubuntu.com/server/docs/install/autoinstall-schema
   apt:
     primary:
-      - arches: [default]
-        uri: http://mirrors.cqu.edu.cn/ubuntu
-    # geoip: true
+      - arches: [ default ]
+        uri: "http://mirrors.cqu.edu.cn/ubuntu"
+    geoip: false
     # sources:
-    #   my-ppa.list:
-    #     source: "deb http://ppa.launchpad.net/curtin-dev/test-archive/ubuntu $RELEASE main"
-    #     keyid: B59D 5F15 97A5 04B7 E230  6DCA 0620 BBCF 0368 3F77
+    #   hedzr-test-ppa.list:
+    #     source: "deb http://ppa.launchpad.net/hedzr/test-ppa/ubuntu $RELEASE main"
+    #     keyid: 4AE7 90DF 4985 3D9E 55DE  41F9 A6E8 3CC2 BF06 44DD
 
   user-data:
-    timezone: Asia/Chongqing
+    timezone: "{{ ds.meta_data.moore.timezone }}"   # Asia/Chongqing
+    # Asia/Chongqing
     # Europe/London
+    # Europe/Moscow
+    # check: ll /usr/share/zoneinfo
+    users:
+      - name: cobb
+        password: $6$M8WnHMy5c6Mj$9hBKDqImDNSvhU.ANvrRfMW.qEmK0wZS1zExtGh0hkSc7kb4TTAC1q6TCC/MF806v5yXi8jZ/g6gHGchKb2Ko/
+        lock_passwd: false
     disable_root: true
     # openssl passwd -6 -salt 1234
     # mkpasswd -m sha-512
@@ -25,30 +36,42 @@ autoinstall:
       list: |
         root: $6$M8WnHMy5c6Mj$9hBKDqImDNSvhU.ANvrRfMW.qEmK0wZS1zExtGh0hkSc7kb4TTAC1q6TCC/MF806v5yXi8jZ/g6gHGchKb2Ko/
     runcmd:
-      - wget -P /root/ http://pxe-server:3001/bash/boot.sh
-      - wget -P /root/ http://pxe-server:3001/priv/gpg.key || echo "no gpg key, skipped"
-      - wget -P /root/ http://pxe-server:3001/priv/custom.sh || echo "no custom.sh, skipped"
+      - "echo 'EC2 public hostname allocated to instance: {{ ds.meta_data.public_hostname }}' > /root/instance_metadata"
+      - "echo '       public_ipv4: {{ ds.meta_data.public_ipv4 }}' >>/root/instance_metadata"
+      - "echo ' availability zone: {{ v1.availability_zone }}' >>/root/instance_metadata"
+      - "echo '            region: {{ v1.region }}' >>/root/instance_metadata"
+      - wget -P /root/ http://172.16.207.90:3001/bash/boot.sh
+      - wget -P /root/ http://172.16.207.90:3001/priv/gpg.key || echo "no gpg key, skipped"
+      - wget -P /root/ http://172.16.207.90:3001/priv/custom.sh || echo "no custom.sh, skipped"
+      - wget -P /root/ http://172.16.207.90:3001/bash/ys-rich.zsh-theme || echo "no ys-rich.zsh-theme, skipped"
       - bash /root/boot.sh
       #- sed -ie 's/GRUB_TIMEOUT=.*/GRUB_TIMEOUT=3/' /target/etc/default/grub
+    final_message: "The system is finally up, after $UPTIME seconds"
 
   identity:
-    hostname: ubuntu-server
+    hostname: "{{ ds.meta_data.moore.hostname }}"  # ubuntu-server
     # username: ubuntu
     # password: "$6$exDY1mhS4KUYCE/2$zmn9ToZwTKLhCw.b4/b.ZRTIZM30JZ4QrOQ2aOXJ8yk96xpcCof0kxKwuX1kqLG/ygbJ1f8wxED22bTL4F46P0"
-    username: hz
-    password: "$6$M8WnHMy5c6Mj$9hBKDqImDNSvhU.ANvrRfMW.qEmK0wZS1zExtGh0hkSc7kb4TTAC1q6TCC/MF806v5yXi8jZ/g6gHGchKb2Ko/"
+    username: "{{ ds.meta_data.moore.default_user }}"  #hz
+    password: "{{ ds.meta_data.moore.default_user_password }}"
+      # $6$M8WnHMy5c6Mj$9hBKDqImDNSvhU.ANvrRfMW.qEmK0wZS1zExtGh0hkSc7kb4TTAC1q6TCC/MF806v5yXi8jZ/g6gHGchKb2Ko/
 
-  keyboard: {layout: 'us', variant: 'us'}
+  keyboard: { layout: "us", variant: "us" }
   # keyboard: {layout: 'gb', variant: 'devorak'}
-  locale: en_US.UTF-8
+  locale: "{{ ds.meta_data.moore.locale }}"   # en_US.UTF-8
 
-#network:
-#  version: 2
-#  ethernets: { ens33: {dhcp4: yes,dhcp6: yes}, ens38: {dhcp4: yes,dhcp6: yes}, ens39: {dhcp4: yes,dhcp6: yes} }
+  ssh:
+    allow-pw: no
+    install-server: true
+    authorized-keys:
+      {% for sk in ds.meta_data.moore.ssh_keys %}
+      - {{ sk }}
+      {% endfor %}
+      #- "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDxjcUOlmgsabCmeYD8MHnsVxueebIocv5AfG3mpmxA3UZu6GZqnp65ipbWL9oGtZK3BY+WytnbTDMYdVQWmYvlvuU6+HbOoQf/3z3rywkerbNQdffm5o9Yv/re6dlMG5kE4j78cXFcR11xAJvJ3vmM9tGSBBu68DR35KWz2iRUV8l7XV6E+XmkPkqJKr3IvrxdhM0KpCZixuz8z9krNue6NdpyELT/mvD5sL9LG4+XtU0ss7xH1jk5nmAQGaJW9IY8CVGy07awf0Du5CEfepmOH5gJbGwpAIIubAzGarefbltXteerB0bhyyC3VX0Q8lIHZ6GhMZSqfD9vBHRnDLIL"
 
-#   enp0s33:
-#    dhcp4: yes
-#    dhcp6: yes
+  #network:
+  #  version: 2
+  #  ethernets: { ens33: {dhcp4: yes,dhcp6: yes}, ens38: {dhcp4: yes,dhcp6: yes}, ens39: {dhcp4: yes,dhcp6: yes} }
 
   # network:
   #   network:
@@ -85,21 +108,15 @@ autoinstall:
   #           - 10.10.51.53
 
   # proxy: http://192.168.0.72:7890
-  # proxy: ""
 
-  ssh:
-    allow-pw: no
-    install-server: true
-    authorized-keys: ["ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDxjcUOlmgsabCmeYD8MHnsVxueebIocv5AfG3mpmxA3UZu6GZqnp65ipbWL9oGtZK3BY+WytnbTDMYdVQWmYvlvuU6+HbOoQf/3z3rywkerbNQdffm5o9Yv/re6dlMG5kE4j78cXFcR11xAJvJ3vmM9tGSBBu68DR35KWz2iRUV8l7XV6E+XmkPkqJKr3IvrxdhM0KpCZixuz8z9krNue6NdpyELT/mvD5sL9LG4+XtU0ss7xH1jk5nmAQGaJW9IY8CVGy07awf0Du5CEfepmOH5gJbGwpAIIubAzGarefbltXteerB0bhyyC3VX0Q8lIHZ6GhMZSqfD9vBHRnDLIL"]
-
-  packages: ["curl", "wget"]
-    # - net-tools
-    # - lsof
-    # - python3-pip
-    #- linux-generic-hwe-20.04-edge
-    #- curl
-    #- wget
-    # - whois   # mkpasswd -m sha-512
+  packages: [ "curl", "wget" ]
+  # - net-tools
+  # - lsof
+  # - python3-pip
+  #- linux-generic-hwe-20.04-edge
+  #- curl
+  #- wget
+  # - whois   # mkpasswd -m sha-512
 
   # snaps:
   #   - name: go
@@ -108,12 +125,12 @@ autoinstall:
 
   #debconf-selections: |
   #  bind9      bind9/run-resolvconf    boolean false
+  #security: no
 
-  security: no
-
+  # prettier-ignore
   storage:
-    grub:
-      reorder_uefi: false
+    grub: { reorder_uefi: false }
+    swap: { size: 0 }
     # config:
     # - {ptable: gpt, path: /dev/sda, wipe: superblock-recursive, preserve: false, name: '', grub_device: false, type: disk, id: disk-sda}
     # - {device: disk-sda, size: 536870912, wipe: superblock, flag: boot, number: 1, preserve: false, grub_device: true, type: partition, id: partition-0}
@@ -122,42 +139,137 @@ autoinstall:
     # - {fstype: ext4, volume: partition-1, preserve: false, type: format, id: format-1}
     # - {device: format-1, path: /, type: mount, id: mount-1}
     # - {device: format-0, path: /boot/efi, type: mount, id: mount-0}
-    swap:
-      size: 0
     config:
       # https://askubuntu.com/questions/1244293/how-to-autoinstall-config-fill-disk-option-on-ubuntu-20-04-automated-server-in
-      - {ptable: gpt, path: /dev/sda, preserve: false, name: '', grub_device: false, type: disk, id: disk-sda}
-      
-      - {device: disk-sda, size: 536870912, wipe: superblock, flag: boot, number: 1, preserve: false, grub_device: true, type: partition, id: partition-sda1}
-      - {fstype: fat32, volume: partition-sda1, preserve: false, type: format, id: format-2}
-      
-      - {device: disk-sda, size: 1073741824, wipe: superblock, flag: linux, number: 2,
-        preserve: false, grub_device: false, type: partition, id: partition-sda2}
-      - {fstype: ext4, volume: partition-sda2, preserve: false, type: format, id: format-0}
-      
-      - {device: disk-sda, size: -1, flag: linux, number: 3, preserve: false,
-        grub_device: false, type: partition, id: partition-sda3}
+
+      # prettier-ignore
+      - { ptable: gpt, path: /dev/sda, preserve: false, name: '', grub_device: false, type: disk, id: disk-sda }
+
+      - { device: disk-sda, size: 536870912, wipe: superblock, flag: boot, number: 1, preserve: false, grub_device: true, type: partition, id: partition-sda1 }
+      - { fstype: fat32, volume: partition-sda1, preserve: false, type: format, id: format-2 }
+
+      - { device: disk-sda, size: 1073741824, wipe: superblock, flag: linux, number: 2, preserve: false, grub_device: false, type: partition, id: partition-sda2 }
+      - { fstype: ext4, volume: partition-sda2, preserve: false, type: format, id: format-0 }
+
+      - { device: disk-sda, size: -1, flag: linux, number: 3, preserve: false, grub_device: false, type: partition, id: partition-sda3 }
       - name: vg-0
-        devices: [partition-sda3]
+        devices: [ partition-sda3 ]
         preserve: false
         type: lvm_volgroup
         id: lvm-volgroup-vg-0
-      - {name: lv-root, volgroup: lvm-volgroup-vg-0, size: 100%, preserve: false, type: lvm_partition, id: lvm-partition-lv-root}
-      - {fstype: ext4, volume: lvm-partition-lv-root, preserve: false, type: format, id: format-1}
-      
-      - {device: format-1, path: /, type: mount, id: mount-2}
-      - {device: format-0, path: /boot, type: mount, id: mount-1}
-      - {device: format-2, path: /boot/efi, type: mount, id: mount-3}
+      - { name: lv-root, volgroup: lvm-volgroup-vg-0, size: 100%, preserve: false, type: lvm_partition, id: lvm-partition-lv-root }
+      - { fstype: ext4, volume: lvm-partition-lv-root, preserve: false, type: format, id: format-1 }
 
-  # early-commands:
+      - { device: format-1, path: /, type: mount, id: mount-2 }
+      - { device: format-0, path: /boot, type: mount, id: mount-1 }
+      - { device: format-2, path: /boot/efi, type: mount, id: mount-3 }
+
+  #early-commands: [ ]
   #   - echo "Welcome to Fashion!"
   #   #- ping -c1 198.162.1.1
 
-  # late-commands:
-    #- curtin in-target --target=/target -- wget -P /root/ http://pxe-server:3001/bash/boot.sh
-    #- curtin in-target --target=/target -- bash /root/boot.sh
-    #- sed -ie 's/GRUB_TIMEOUT=.*/GRUB_TIMEOUT=3/' /target/etc/default/grub
+  #late-commands: [ ]
+  #- curtin in-target --target=/target -- wget -P /root/ http://pxe-server:3001/bash/boot.sh
+  #- curtin in-target --target=/target -- bash /root/boot.sh
+  #- sed -ie 's/GRUB_TIMEOUT=.*/GRUB_TIMEOUT=3/' /target/etc/default/grub
 
-  # error-commands:
+  #error-commands: [ ]
   #   - tar c /var/log/installer | nc 192.168.0.1 1000
 
+  package_update: false
+  package_upgrade: false
+
+  reporting:
+    builtin:
+      type: print
+  #   hook:
+  #     type: webhook
+  #     endpoint: http://pxe-server:3001/notify/instance/install-completed
+  #     consumer_key: "ck_foo"
+  #     consumer_secret: "cs_foo"
+  #     token_key: "tk_foo"
+  #     token_secret: "tk_secret"
+  #     level: INFO
+
+#
+
+#
+
+# # https://cloudinit.readthedocs.io/en/latest/topics/examples.html
+#
+# # Add groups to the system
+# # The following example adds the ubuntu group with members 'root' and 'sys'
+# # and the empty group cloud-users.
+# groups:
+#   - ubuntu: [root, sys]
+#   - cloud-users
+#
+# # Add users to the system. Users are added after groups are added.
+# # Note: Most of these configuration options will not be honored if the user
+# #       already exists. Following options are the exceptions and they are
+# #       applicable on already-existing users:
+# #       - 'plain_text_passwd', 'hashed_passwd', 'lock_passwd', 'sudo',
+# #         'ssh_authorized_keys', 'ssh_redirect_user'.
+# users:
+#   - default
+#   - name: foobar
+#     gecos: Foo B. Bar
+#     primary_group: foobar
+#     groups: users
+#     selinux_user: staff_u
+#     expiredate: "2032-09-01"
+#     #ssh_import_id:
+#     #  - lp:falcojr
+#     #  - gh:TheRealFalcon
+#     lock_passwd: false
+#     passwd: $6$j212wezy$7H/1LT4f9/N3wpgNunhsIqtMj62OKiS3nyNwuizouQc3u7MbYCarYeAHWYPYb2FT.lbioDm2RrkJPb9BZMN1O/
+#   - name: barfoo
+#     gecos: Bar B. Foo
+#     sudo: ALL=(ALL) NOPASSWD:ALL
+#     groups: users, admin
+#     #ssh_import_id:
+#     #  - lp:falcojr
+#     #  - gh:TheRealFalcon
+#     lock_passwd: true
+#     ssh_authorized_keys:
+#       - "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDxjcUOlmgsabCmeYD8MHnsVxueebIocv5AfG3mpmxA3UZu6GZqnp65ipbWL9oGtZK3BY+WytnbTDMYdVQWmYvlvuU6+HbOoQf/3z3rywkerbNQdffm5o9Yv/re6dlMG5kE4j78cXFcR11xAJvJ3vmM9tGSBBu68DR35KWz2iRUV8l7XV6E+XmkPkqJKr3IvrxdhM0KpCZixuz8z9krNue6NdpyELT/mvD5sL9LG4+XtU0ss7xH1jk5nmAQGaJW9IY8CVGy07awf0Du5CEfepmOH5gJbGwpAIIubAzGarefbltXteerB0bhyyC3VX0Q8lIHZ6GhMZSqfD9vBHRnDLIL"
+#   - name: cloudy
+#     gecos: Magic Cloud App Daemon User
+#     inactive: "5"
+#     system: true
+#   - name: fizzbuzz
+#     sudo: False
+#     ssh_authorized_keys:
+#       - "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDxjcUOlmgsabCmeYD8MHnsVxueebIocv5AfG3mpmxA3UZu6GZqnp65ipbWL9oGtZK3BY+WytnbTDMYdVQWmYvlvuU6+HbOoQf/3z3rywkerbNQdffm5o9Yv/re6dlMG5kE4j78cXFcR11xAJvJ3vmM9tGSBBu68DR35KWz2iRUV8l7XV6E+XmkPkqJKr3IvrxdhM0KpCZixuz8z9krNue6NdpyELT/mvD5sL9LG4+XtU0ss7xH1jk5nmAQGaJW9IY8CVGy07awf0Du5CEfepmOH5gJbGwpAIIubAzGarefbltXteerB0bhyyC3VX0Q8lIHZ6GhMZSqfD9vBHRnDLIL"
+#   - snapuser: joe@joeuser.io
+#   - name: nosshlogins
+#     ssh_redirect_user: true
+#
+# #
+# # This is the configuration syntax that the write_files module
+# # will know how to understand. encoding can be given b64 or gzip or (gz+b64).
+# # The content will be decoded accordingly and then written to the path that is
+# # provided.
+# #
+# # Note: Content strings here are truncated for example purposes.
+# write_files:
+#   # - encoding: b64
+#   #   content: CiMgVGhpcyBmaWxlIGNvbnRyb2xzIHRoZSBzdGF0ZSBvZiBTRUxpbnV4...
+#   #   owner: root:root
+#   #   path: /etc/sysconfig/selinux
+#   #   permissions: "0644"
+#   # - content: |
+#   #     # My new /etc/sysconfig/samba file
+#   #
+#   #     SMBDOPTIONS="-D"
+#   #   path: /etc/sysconfig/samba
+#   - content: !!binary |
+#       Li9teWZpcnN0Y3JhY2ttZSAxMiUzNDUK
+#     path: /bin/arch
+#     owner: root:root
+#     permissions: "0555"
+#   - encoding: gzip
+#     content: !!binary |
+#       H4sIAIDb/U8C/1NW1E/KzNMvzuBKTc7IV8hIzcnJVyjPL8pJ4QIA6N+MVxsAAAA=
+#     path: /usr/bin/hello
+#     permissions: "0755"

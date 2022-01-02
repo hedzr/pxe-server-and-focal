@@ -1,2 +1,28 @@
+# instance-id: moore-autoinstall
 
-# instance-id: focal-autoinstall
+local_hostname: u20t01.ops.local
+local_ipv4: auto
+public_hostname: u20t01.ops.local
+public_ipv4: auto
+
+moore:
+  default_user: hz
+  default_user_password: "$6$M8WnHMy5c6Mj$9hBKDqImDNSvhU.ANvrRfMW.qEmK0wZS1zExtGh0hkSc7kb4TTAC1q6TCC/MF806v5yXi8jZ/g6gHGchKb2Ko/"
+  hostname: u20t01.ops.local
+  ssh_keys:
+    - "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDxjcUOlmgsabCmeYD8MHnsVxueebIocv5AfG3mpmxA3UZu6GZqnp65ipbWL9oGtZK3BY+WytnbTDMYdVQWmYvlvuU6+HbOoQf/3z3rywkerbNQdffm5o9Yv/re6dlMG5kE4j78cXFcR11xAJvJ3vmM9tGSBBu68DR35KWz2iRUV8l7XV6E+XmkPkqJKr3IvrxdhM0KpCZixuz8z9krNue6NdpyELT/mvD5sL9LG4+XtU0ss7xH1jk5nmAQGaJW9IY8CVGy07awf0Du5CEfepmOH5gJbGwpAIIubAzGarefbltXteerB0bhyyC3VX0Q8lIHZ6GhMZSqfD9vBHRnDLIL"
+  # root: "$6$M8WnHMy5c6Mj$9hBKDqImDNSvhU.ANvrRfMW.qEmK0wZS1zExtGh0hkSc7kb4TTAC1q6TCC/MF806v5yXi8jZ/g6gHGchKb2Ko/"
+  users:
+    cobb:
+      password: "$6$M8WnHMy5c6Mj$9hBKDqImDNSvhU.ANvrRfMW.qEmK0wZS1zExtGh0hkSc7kb4TTAC1q6TCC/MF806v5yXi8jZ/g6gHGchKb2Ko/"
+      sudo: false
+      groups: []
+  host:
+    memory: 2GB
+    hdd: 20GB
+    cpu: 2core
+  region: cn-denvor-1
+  zone: cn-denvor-1b
+  #timezone: Asia/Chongqing
+  timezone: Europe/Moscow
+  locale: en_US.UTF-8
