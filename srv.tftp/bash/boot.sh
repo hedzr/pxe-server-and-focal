@@ -49,6 +49,28 @@ FORCE_SYSCTL=${FORCE_SYSCTL:-1}
 
 #########################
 
+ALLOW_ROOT_LOGIN=${ALLOW_ROOT_LOGIN:-1}
+ALLOW_NOPASS_SUDO=${ALLOW_NOPASS_SUDO:-1}
+ALLOW_AUTO_TTY_LOGIN=${ALLOW_AUTO_TTY_LOGIN:-1}
+ALLOW_USE_DHCP_ALL=${ALLOW_USE_DHCP_ALL:-1}
+
+ALLOW_GENERATE_LOCALES=${ALLOW_GENERATE_LOCALES:-0}
+ALLOW_CONFIG_UFW=${ALLOW_CONFIG_UFW:-0}
+
+#########################
+
+TARGET_TIMEZONE=Asia/Chongqing
+
+LOCAL_DOMAIN="ops.local"
+
+ubuntu_codename=focal
+ubuntu_version=20.04.3
+ubuntu_iso=ubuntu-${ubuntu_version}-live-server-amd64.iso
+
+ubuntu_mirrors=("mirrors.cqu.edu.cn" "mirrors.ustc.edu.cn" "mirrors.tuna.tsinghua.edu.cn" "mirrors.163.com" "mirrors.aliyun.com")
+
+#########################
+
 boot_first_install() {
 
 	{ _entry; } | tee /var/log/boot.sh.log
@@ -62,7 +84,8 @@ info_print() {
 	df -hT
 	lsblk
 	# less /var/log/cloud-init-output.log
-	ip a|grep 'inet '
+	ip a|grep 'inet '|grep -v '127\.0\.0\.1'
+	timedatectl
 
 	echo '======= boot.sh: ALL FOLKS! Restart OS so that auto login to tty1'
 	echo '         Or run: sudo systemctl restart getty@tty1.service'
@@ -80,29 +103,36 @@ _entry() {
 	local hostName=$(hostname -s)
 	echo && echo && env | sort && echo && echo
 	echo && echo && hostnamectl && echo && echo
+	echo && echo && timedatectl && echo && echo
 
 	apt_source
 
 	#setup_hostnames
-	allow_root_login
+	if_zero_or_empty $ALLOW_ROOT_LOGIN || allow_root_login
 	adjust_ntp
 	tune_limits
-	nopass_sudo
-	auto_tty
-	all_dhcp
+	if_zero_or_empty $ALLOW_NOPASS_SUDO || nopass_sudo
+	if_zero_or_empty $ALLOW_AUTO_TTY_LOGIN || auto_tty
+	if_zero_or_empty $ALLOW_USE_DHCP_ALL || all_dhcp
 
 	if_zero_or_empty $INSTALL_SAMBA_SERVER || install_samba_server
 	if_zero_or_empty $INSTALL_BASIC_PKGS || install_basic_pkgs
 	if_zero_or_empty $INSTALL_LOCALES || install_locales
 	if_zero_or_empty $INSTALL_AND_SETUP_UFW || install_ufw
 
-	# install_locales
-	# install_ufw
+	if_zero_or_empty $ALLOW_GENERATE_LOCALES || install_locales
+	if_zero_or_empty $ALLOW_CONFIG_UFW || install_ufw
 
 	if_zero_or_empty $INSTALL_ZSH || install_zsh
 	if_zero_or_empty $INSTALL_GIT_ENV || install_git_env
 	if_zero_or_empty $INSTALL_GOLANG || install_golang
 	if_zero_or_empty $INSTALL_GCC_10 || install_gcc_10
+
+	[ -f /root/boot.sh ] && {
+		$SUDO chmox a+x /root/boot.sh
+		$SUDO mv /root/boot.sh /usr/local/bin/booter.sh
+	}
+	[ -f /root/gpg.key ] && $SUDO rm /root/gpg.key
 }
 
 setup_hostnames() {
@@ -222,10 +252,11 @@ tune_limits() {
 apt_source() {
 	headline $(_curr_func_name)
 	[ -f /etc/apt/sources.list.cqu.bak ] || {
+		local mirror="${ubuntu_mirrors[0]}"
 		$SUDO cp /etc/apt/sources.list{,.cqu.bak}
-		$SUDO sed -i -r 's/us.archive.ubuntu.com/mirrors.cqu.edu.cn/' /etc/apt/sources.list
-		$SUDO sed -i -r 's/cn.archive.ubuntu.com/mirrors.cqu.edu.cn/' /etc/apt/sources.list
-		$SUDO sed -i -r 's/archive.ubuntu.com/mirrors.cqu.edu.cn/' /etc/apt/sources.list
+		$SUDO sed -i -r "s/us.archive.ubuntu.com/$mirror/" /etc/apt/sources.list
+		$SUDO sed -i -r "s/cn.archive.ubuntu.com/$mirror/" /etc/apt/sources.list
+		$SUDO sed -i -r "s/archive.ubuntu.com/$mirror/" /etc/apt/sources.list
 
 		$SUDO apt-get update
 	}
@@ -261,7 +292,7 @@ all_dhcp() {
 	na=($(ifconfig -s -a | tail -n +2 | grep -v '^lo' | awk '{print $1}'))
 	for i in ${na[@]}; do
 		[[ $n -gt 1 ]] && str=", " || str=""
-		str="${str}${i}: {dhcp4: yes,dhcp6: yes}"
+		str="${str}${i}: {dhcp4: yes,dhcp6: yes,optional: true}"
 		network_str="${network_str}${str}"
 		let n++
 	done
@@ -630,6 +661,26 @@ install_zsh_to() {
 
 	EOF
 
+	$SUDO cat >>$home/.local/bin/.zsh.30.tool <<-"EOF"
+
+		# eval `ssh-agent`
+		# [ -f ~/.ssh/id_rsa ] && ssh-add ~/.ssh/id_rsa
+		alias ssh='ssh -A'
+		# you may review it with: ssh-add -l
+
+	EOF
+
+	sed_yes_no AllowAgentForwarding
+	sed_yes_no AllowTcpForwarding
+	cat <<-EOF | $SUDO tee /etc/ssh/sshd_config.d/all_agent_forwarding
+	Host *
+	    ForwardAgent yes
+	EOF
+
+	sed_yes_no TCPKeepAlive
+	sed_key_value ClientAliveInterval 60
+	sed_key_value ClientAliveCountMax 100000
+
 	$SUDO cat >>$home/.local/bin/.zsh.00.path <<-EOF
 
 
@@ -651,6 +702,41 @@ install_zsh_to() {
 
 	EOF
 	$SUDO chown -R $name: $home/.local $home/.zsh*
+}
+
+sed_yes_no () {
+	local key=$1
+	local f=$2
+	if grep -qP "^#$key yes" $f; then
+		$SUDO sed -i -r "s/^#$key yes/$key yes/" $f
+	else
+		if grep -qP "^$key yes" $f; then
+			:
+		else
+			cat <<-EOF | $SUDO tee -a $f
+			$key yes
+			EOF
+		fi
+		if grep -qP "^$key no" $f; then
+			$SUDO sed -i -r "s/^$key no/#$key no/" $f
+		fi
+	fi
+}
+sed_key_value () {
+	local key=$1
+	local value=$2
+	local f=$3
+	if grep -qP "^#$key $value" $f; then
+		$SUDO sed -i -r "s/^#$key $value/$key $value/" $f
+	else
+		if grep -qP "^$key $value" $f; then
+			:
+		else
+			cat <<-EOF | $SUDO tee -a $f
+			$key $value
+			EOF
+		fi
+	fi
 }
 
 install_git_env() {
@@ -796,6 +882,9 @@ _make_git_test_repo() {
 	'
 }
 
+boot_install-golang() { install_golang "$@"; }
+boot_install_golang() { install_golang "$@"; }
+
 # install go 1.13 or higher
 install_golang() {
 	headline $(_curr_func_name)
@@ -811,6 +900,9 @@ _install_golang_env_to() {
 		go env -w GOPROXY='https://goproxy.cn,direct';
 		go env -w GOFLAGS='-count=1'"
 }
+
+boot_install-gcc-10() { install_gcc_10 "$@"; }
+boot_install_gcc_10() { install_gcc_10 "$@"; }
 
 install_gcc_10() {
 	headline $(_curr_func_name)
