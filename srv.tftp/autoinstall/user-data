@@ -181,7 +181,7 @@ autoinstall:
 
   reporting:
     builtin:
-      type: print
+      type: print   # or none
   #   hook:
   #     type: webhook
   #     endpoint: http://pxe-server:3001/notify/instance/install-completed
