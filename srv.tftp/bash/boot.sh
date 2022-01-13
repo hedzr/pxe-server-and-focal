@@ -139,6 +139,9 @@ setup_hostnames() {
 	headline $(_curr_func_name)
 	$SUDO hostnamectl set-hostname $HostName
 	$SUDO hostnamectl set-icon-name $hostName
+	$SUDO hostnamectl set-chassis vm  # "desktop", "laptop", "convertible", "server", "tablet", "handset", "watch", "embedded"
+	$SUDO hostnamectl set-deployment development # "development", "integration", "staging", "production"
+	$SUDO hostnamectl set-location "$TARGET_TIMEZONE"
 	hostnamectl
 }
 
@@ -277,7 +280,7 @@ nopass_sudo() {
 auto_tty() {
 	headline $(_curr_func_name)
 	local odir=/etc/systemd/system/getty@tty1.service.d
-	[ -d $odir ] || mkdir -pv $odir
+	[ -d $odir ] || $SUDO mkdir -pv $odir
 	cat <<-EOF | $SUDO tee $odir/override.conf
 		[Service]
 		ExecStart=
