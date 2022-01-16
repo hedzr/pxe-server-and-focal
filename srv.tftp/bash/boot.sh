@@ -73,7 +73,7 @@ ubuntu_mirrors=("mirrors.cqu.edu.cn" "mirrors.ustc.edu.cn" "mirrors.tuna.tsinghu
 
 boot_first_install() {
 
-	{ _entry; } | tee /var/log/boot.sh.log
+	{ _entry; } | $SUDO tee /var/log/boot.sh.log
 
 	info_print
 	# rm -rf /root/boot.sh
