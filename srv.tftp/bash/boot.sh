@@ -371,9 +371,10 @@ install_samba_server() {
 
 install_basic_pkgs() {
 	headline $(_curr_func_name)
-	$SUDO apt-get install -y curl wget git build-essential make gnu-standards lsof net-tools dnsutils
-	if_zero_or_empty $INSTALL_MC || $SUDO apt-get install -y htop mc ranger jq
-	$SUDO snap install -y yq
+	$SUDO apt-get install -y curl wget git lsof net-tools dnsutils
+	if_zero_or_empty $INSTALL_GCC || $SUDO apt-get install -y build-essential make gnu-standards
+	if_zero_or_empty $INSTALL_MC  || $SUDO apt-get install -y htop mc ranger
+	if_zero_or_empty $INSTALL_YQ  || $SUDO snap install -y yq jq
 	# ninja-build gdb m4 nasm valgrind ccache
 	# libtool ccze mc ranger jq
 	# flex bison cmake
