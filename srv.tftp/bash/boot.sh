@@ -183,7 +183,7 @@ tune_limits() {
 		#
 		#$SUDO sed -i 's/#net.ipv4.ip_forward=1/net.ipv4.ip_forward=1/g' /etc/sysctl.conf
 		#$SUDO sed -i 's/#net.ipv6.conf.all.forwarding=1/net.ipv6.conf.all.forwarding=1/g' /etc/sysctl.conf
-		cat <<-EOH | $SUDO tee /etc/sysctl.d/51.net.opts.conf
+		cat <<-EOH | $SUDO tee /etc/sysctl.d/51-net.opts.conf
 			net.ipv4.ip_forward=1
 			net.ipv6.conf.all.forwarding=1
 			## JY ##
