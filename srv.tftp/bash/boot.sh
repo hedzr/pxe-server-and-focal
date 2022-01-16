@@ -101,6 +101,9 @@ _entry() {
 	local Username=hz
 	local HostName=$(hostname -f)
 	local hostName=$(hostname -s)
+	[ -d /vagrant ] && {
+		Username=vagrant
+	}
 	echo && echo && env | sort && echo && echo
 	echo && echo && hostnamectl && echo && echo
 	echo && echo && timedatectl && echo && echo
